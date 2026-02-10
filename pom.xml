@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.diagnostic</groupId>
+    <artifactId>spring-boot-diagnostic-tool</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>Spring Boot Diagnostic Tool</name>
+    <description>Lightweight diagnostic and architecture insight tool for Spring Boot applications</description>
+
+    <developers>
+        <developer>
+            <name>剑神卓凌昭</name>
+            <roles>
+                <role>Author</role>
+                <role>Developer</role>
+            </roles>
+        </developer>
+    </developers>
+
+    <modules>
+        <module>diagnostic-core</module>
+        <module>diagnostic-autoconfigure</module>
+        <module>diagnostic-api</module>
+        <module>diagnostic-report</module>
+        <module>diagnostic-dashboard</module>
+        <module>example-app</module>
+    </modules>
+
+    <properties>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring-boot.version>2.7.18</spring-boot.version>
+        <jgrapht.version>1.5.2</jgrapht.version>
+        <jackson.version>2.15.3</jackson.version>
+        <thymeleaf.version>3.1.2.RELEASE</thymeleaf.version>
+        <jqwik.version>1.8.2</jqwik.version>
+        <junit.version>5.10.1</junit.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Spring Boot Dependencies -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- JGraphT for graph data structures -->
+            <dependency>
+                <groupId>org.jgrapht</groupId>
+                <artifactId>jgrapht-core</artifactId>
+                <version>${jgrapht.version}</version>
+            </dependency>
+
+            <!-- Jackson for JSON -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+
+            <!-- Thymeleaf for HTML reports -->
+            <dependency>
+                <groupId>org.thymeleaf</groupId>
+                <artifactId>thymeleaf</artifactId>
+                <version>${thymeleaf.version}</version>
+            </dependency>
+
+            <!-- Testing -->
+            <dependency>
+                <groupId>net.jqwik</groupId>
+                <artifactId>jqwik</artifactId>
+                <version>${jqwik.version}</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.11.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.2.2</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

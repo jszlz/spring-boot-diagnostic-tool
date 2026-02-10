@@ -1,0 +1,33 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: diagnostic-dashboard
+  main:
+    allow-bean-definition-overriding: true
+  
+# 被监控应用列表配置
+monitored:
+  apps:
+    - name: 示例应用1
+      url: http://localhost:8080
+      diagnostic-api-path: /diagnostic
+    - name: 示例应用2
+      url: http://localhost:8082/example-app-2
+      diagnostic-api-path: /diagnostic
+  # 默认监控的应用（可选）
+  default-app: 示例应用1
+
+# Dashboard本身不需要监控功能
+diagnostic:
+  enabled: true
+  monitor-all-endpoints: false
+  sampling-rate: 0.0
+  api-enabled: false
+  auto-generate-report-on-startup: false
+
+logging:
+  level:
+    com.diagnostic: INFO
+    org.springframework: WARN

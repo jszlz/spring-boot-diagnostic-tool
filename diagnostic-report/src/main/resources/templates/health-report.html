@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>诊断健康报告</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .timestamp {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+        
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .summary-card h3 {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        .summary-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        .risk-item {
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+        
+        .risk-high {
+            border-color: #e74c3c;
+            background: #fee;
+        }
+        
+        .risk-medium {
+            border-color: #f39c12;
+            background: #ffeaa7;
+        }
+        
+        .risk-low {
+            border-color: #3498db;
+            background: #e3f2fd;
+        }
+        
+        .risk-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .risk-type {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        
+        .severity-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .severity-high {
+            background: #e74c3c;
+        }
+        
+        .severity-medium {
+            background: #f39c12;
+        }
+        
+        .severity-low {
+            background: #3498db;
+        }
+        
+        .recommendations {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+        
+        .recommendations li {
+            margin-bottom: 5px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #666;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .degrading {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        
+        .topology-container {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+        
+        .node-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .node-item {
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .node-type {
+            font-size: 0.85em;
+            color: #666;
+            text-transform: uppercase;
+        }
+        
+        .node-id {
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏥 应用健康诊断报告</h1>
+            <div class="timestamp" th:text="'生成时间: ' + ${#dates.format(new java.util.Date(report.timestamp), 'yyyy-MM-dd HH:mm:ss')}"></div>
+        </header>
+
+        <div class="summary">
+            <div class="summary-card">
+                <h3>监控端点</h3>
+                <div class="value" th:text="${report.endpointStatistics.size()}">0</div>
+            </div>
+            <div class="summary-card">
+                <h3>识别风险</h3>
+                <div class="value" th:text="${report.risks.size()}">0</div>
+            </div>
+            <div class="summary-card">
+                <h3>外部依赖</h3>
+                <div class="value" th:text="${report.topology.graph != null ? report.topology.graph.vertexSet().size() - 1 : 0}">0</div>
+            </div>
+            <div class="summary-card">
+                <h3>循环依赖</h3>
+                <div class="value" th:text="${report.topology.cyclicNodes.size()}">0</div>
+            </div>
+        </div>
+
+        <div class="section" th:if="${!report.risks.isEmpty()}">
+            <h2>🚨 架构风险</h2>
+            <div th:each="risk : ${report.risks}" 
+                 th:class="'risk-item risk-' + ${risk.severity.toString().toLowerCase()}">
+                <div class="risk-header">
+                    <span class="risk-type" th:text="${risk.type}"></span>
+                    <span th:class="'severity-badge severity-' + ${risk.severity.toString().toLowerCase()}"
+                          th:text="${risk.severity}"></span>
+                </div>
+                <div><strong>组件:</strong> <span th:text="${risk.component}"></span></div>
+                <div><strong>描述:</strong> <span th:text="${risk.description}"></span></div>
+                <div th:if="${!risk.recommendations.isEmpty()}">
+                    <strong>建议:</strong>
+                    <ul class="recommendations">
+                        <li th:each="rec : ${risk.recommendations}" th:text="${rec}"></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📊 端点性能统计</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>端点</th>
+                        <th>总请求数</th>
+                        <th>QPS</th>
+                        <th>平均响应时间 (ms)</th>
+                        <th>P95 (ms)</th>
+                        <th>P99 (ms)</th>
+                        <th>错误率</th>
+                        <th>趋势</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="entry : ${report.endpointStatistics}">
+                        <td th:text="${entry.key}"></td>
+                        <td th:text="${entry.value.totalRequests}"></td>
+                        <td th:text="${#numbers.formatDecimal(entry.value.qps, 1, 2)}"></td>
+                        <td th:text="${#numbers.formatDecimal(entry.value.averageResponseTime, 1, 2)}"></td>
+                        <td th:text="${#numbers.formatDecimal(entry.value.p95ResponseTime, 1, 2)}"></td>
+                        <td th:text="${#numbers.formatDecimal(entry.value.p99ResponseTime, 1, 2)}"></td>
+                        <td th:text="${#numbers.formatPercent(entry.value.errorRate, 1, 2)}"></td>
+                        <td>
+                            <span th:if="${report.trends.containsKey(entry.key)}"
+                                  th:class="${report.trends.get(entry.key).degrading ? 'degrading' : ''}"
+                                  th:text="${report.trends.get(entry.key).direction}"></span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section">
+            <h2>🔗 依赖拓扑</h2>
+            <div class="topology-container">
+                <p><strong>节点总数:</strong> <span th:text="${report.topology.graph != null ? report.topology.graph.vertexSet().size() : 0}"></span></p>
+                <p><strong>边总数:</strong> <span th:text="${report.topology.graph != null ? report.topology.graph.edgeSet().size() : 0}"></span></p>
+                <p th:if="${report.topology.cyclicNodes.size() > 0}" style="color: #e74c3c;">
+                    <strong>⚠️ 检测到循环依赖:</strong> <span th:text="${report.topology.cyclicNodes.size()}"></span> 个节点
+                </p>
+                
+                <div class="node-list" th:if="${report.topology.graph != null}">
+                    <div class="node-item" th:each="node : ${report.topology.graph.vertexSet()}">
+                        <div class="node-type" th:text="${node.type}"></div>
+                        <div class="node-id" th:text="${node.id}"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Spring Boot 诊断工具 - 自动生成的健康报告</p>
+        </footer>
+    </div>
+</body>
+</html>

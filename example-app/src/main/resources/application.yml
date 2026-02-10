@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: example-app
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  h2:
+    console:
+      enabled: true
+
+server:
+  port: 8080
+
+diagnostic:
+  enabled: true
+  monitor-all-endpoints: true
+  slow-endpoint-threshold-ms: 1000
+  high-error-rate-threshold: 0.05
+  sampling-rate: 1.0
+  data-retention-days: 7
+  api-enabled: true
+  report-output-path: ./diagnostic-reports
+  auto-generate-report-on-startup: false

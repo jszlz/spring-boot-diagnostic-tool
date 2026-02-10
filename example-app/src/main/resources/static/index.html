@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>诊断工具 - 仪表板</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            color: white;
+            text-align: center;
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: rgba(255,255,255,0.9);
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 1.2em;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 5px;
+            transition: transform 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        .api-list {
+            display: grid;
+            gap: 10px;
+        }
+        .api-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .method {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+            margin-right: 10px;
+            color: white;
+        }
+        .get { background: #61affe; }
+        .post { background: #49cc90; }
+        .endpoint {
+            font-family: monospace;
+            color: #333;
+        }
+        .description {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        #result {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 600px;
+            overflow: auto;
+        }
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        .loading {
+            text-align: center;
+            color: #667eea;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏥 诊断工具仪表板</h1>
+        <p class="subtitle">Spring Boot 应用健康诊断与架构洞察</p>
+
+        <div class="card">
+            <h2>📊 快速查看</h2>
+            <button class="btn" onclick="loadData('/diagnostic/health/summary')">查看报告摘要</button>
+            <button class="btn" onclick="loadData('/diagnostic/endpoints')">端点统计</button>
+            <button class="btn" onclick="loadData('/diagnostic/risks')">架构风险</button>
+            <button class="btn" onclick="loadData('/diagnostic/topology/json')">依赖拓扑</button>
+            <button class="btn" onclick="window.open('/diagnostic/report', '_blank')">HTML报告</button>
+        </div>
+
+        <div class="card">
+            <h2>🔌 REST API 端点</h2>
+            <div class="api-list">
+                <div class="api-item">
+                    <span class="method get">GET</span>
+                    <span class="endpoint">/diagnostic/health</span>
+                    <div class="description">获取完整健康报告</div>
+                </div>
+                <div class="api-item">
+                    <span class="method get">GET</span>
+                    <span class="endpoint">/diagnostic/health/summary</span>
+                    <div class="description">获取报告摘要</div>
+                </div>
+                <div class="api-item">
+                    <span class="method get">GET</span>
+                    <span class="endpoint">/diagnostic/topology</span>
+                    <div class="description">获取依赖拓扑</div>
+                </div>
+                <div class="api-item">
+                    <span class="method get">GET</span>
+                    <span class="endpoint">/diagnostic/endpoints</span>
+                    <div class="description">获取所有端点统计</div>
+                </div>
+                <div class="api-item">
+                    <span class="method get">GET</span>
+                    <span class="endpoint">/diagnostic/risks</span>
+                    <div class="description">获取架构风险</div>
+                </div>
+                <div class="api-item">
+                    <span class="method get">GET</span>
+                    <span class="endpoint">/diagnostic/status</span>
+                    <div class="description">健康检查</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🧪 测试端点</h2>
+            <button class="btn" onclick="testEndpoint('/api/users')">测试用户列表</button>
+            <button class="btn" onclick="testEndpoint('/api/users/slow')">测试慢接口</button>
+            <p style="margin-top: 15px; color: #666;">
+                点击测试按钮生成一些监控数据，然后查看报告
+            </p>
+        </div>
+
+        <div class="card" id="resultCard" style="display: none;">
+            <h2>📄 结果</h2>
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        async function loadData(url) {
+            const resultCard = document.getElementById('resultCard');
+            const result = document.getElementById('result');
+            
+            resultCard.style.display = 'block';
+            result.innerHTML = '<div class="loading">加载中...</div>';
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                result.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                result.innerHTML = '<div style="color: red;">错误: ' + error.message + '</div>';
+            }
+        }
+
+        async function testEndpoint(url) {
+            const resultCard = document.getElementById('resultCard');
+            const result = document.getElementById('result');
+            
+            resultCard.style.display = 'block';
+            result.innerHTML = '<div class="loading">请求中...</div>';
+            
+            try {
+                const response = await fetch(url);
+                const text = await response.text();
+                result.innerHTML = '<div style="color: green;">✓ 请求成功！</div>' +
+                                  '<pre>' + text + '</pre>' +
+                                  '<p style="margin-top: 10px;">现在可以查看诊断报告了</p>';
+            } catch (error) {
+                result.innerHTML = '<div style="color: red;">错误: ' + error.message + '</div>';
+            }
+        }
+    </script>
+</body>
+</html>
