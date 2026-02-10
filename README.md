@@ -1,4 +1,4 @@
-# Spring Boot 诊断工具
+# Spring Boot 诊断工具 AI生成
 
 面向Spring Boot应用的轻量级诊断与架构洞察工具。无需复杂配置，即可自动分析微服务依赖、识别潜在瓶颈，并生成可视化的健康报告。
 
@@ -220,7 +220,7 @@ public String fastEndpoint() {
 
 ## 👨‍💻 作者
 
-**剑神卓凌昭**
+**剑神卓凌昭 & AI**
 
 ## 🤝 贡献
 
