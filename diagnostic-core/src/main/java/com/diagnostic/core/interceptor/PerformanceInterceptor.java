@@ -3,6 +3,7 @@ package com.diagnostic.core.interceptor;
 import com.diagnostic.core.annotation.DiagnosticEndpoint;
 import com.diagnostic.core.collector.PerformanceCollector;
 import com.diagnostic.core.model.EndpointMetrics;
+import com.diagnostic.core.model.EndpointType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.method.HandlerMethod;
@@ -36,6 +37,12 @@ public class PerformanceInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+        // Skip Spring Boot's internal error handler
+        String uri = request.getRequestURI();
+        if (uri != null && uri.endsWith("/error")) {
+            return true;
+        }
+        
         if (!shouldMonitor(handler)) {
             return true;
         }
@@ -75,11 +82,20 @@ public class PerformanceInterceptor implements HandlerInterceptor {
             // Extract controller information
             String controllerClass = null;
             String controllerMethod = null;
+            EndpointType endpointType = EndpointType.BUSINESS; // Default to business
+            
             if (handler instanceof HandlerMethod) {
                 HandlerMethod handlerMethod = (HandlerMethod) handler;
                 controllerClass = handlerMethod.getBeanType().getName();
                 controllerMethod = handlerMethod.getMethod().getName();
+                
+                // Determine endpoint type based on controller package or path
+                endpointType = determineEndpointType(controllerClass, endpointName);
             }
+
+            // Extract client IP and user agent
+            String clientIp = getClientIp(request);
+            String userAgent = request.getHeader("User-Agent");
 
             // Build metrics
             EndpointMetrics metrics = EndpointMetrics.builder()
@@ -90,6 +106,9 @@ public class PerformanceInterceptor implements HandlerInterceptor {
                     .method(request.getMethod())
                     .controllerClass(controllerClass)
                     .controllerMethod(controllerMethod)
+                    .endpointType(endpointType)
+                    .clientIp(clientIp)
+                    .userAgent(userAgent)
                     .build();
 
             // Collect metrics asynchronously
@@ -178,11 +197,91 @@ public class PerformanceInterceptor implements HandlerInterceptor {
 
         // Use request URI as default
         String uri = request.getRequestURI();
+        if (uri == null) {
+            uri = "/unknown";
+        }
+        
         String contextPath = request.getContextPath();
         if (contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath)) {
             uri = uri.substring(contextPath.length());
         }
 
-        return request.getMethod() + " " + uri;
+        String method = request.getMethod();
+        if (method == null) {
+            method = "UNKNOWN";
+        }
+
+        return method + " " + uri;
+    }
+
+    /**
+     * Determine endpoint type based on controller class and endpoint path.
+     * 
+     * @param controllerClass the controller class name
+     * @param endpointName the endpoint name (format: "METHOD /path")
+     * @return endpoint type (BUSINESS or DIAGNOSTIC)
+     */
+    private EndpointType determineEndpointType(String controllerClass, String endpointName) {
+        // Priority 1: Check if controller is in diagnostic package
+        if (controllerClass != null && controllerClass.contains("com.diagnostic")) {
+            logger.debug("Endpoint classified as DIAGNOSTIC based on controller package: {}", controllerClass);
+            return EndpointType.DIAGNOSTIC;
+        }
+        
+        // Priority 2: Check if endpoint path contains diagnostic keywords
+        if (endpointName != null) {
+            String lowerPath = endpointName.toLowerCase();
+            if (lowerPath.contains("/diagnostic") || 
+                lowerPath.contains("/actuator") ||
+                lowerPath.contains("/metrics") ||
+                lowerPath.contains("/health") ||
+                lowerPath.contains("/monitor") ||
+                lowerPath.contains("/jvm")) {
+                logger.debug("Endpoint classified as DIAGNOSTIC based on path: {}", endpointName);
+                return EndpointType.DIAGNOSTIC;
+            }
+        }
+        
+        logger.debug("Endpoint classified as BUSINESS: controller={}, path={}", controllerClass, endpointName);
+        return EndpointType.BUSINESS;
+    }
+
+    /**
+     * 获取客户端真实IP地址
+     * 考虑了Nginx、Apache等反向代理的情况
+     */
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+        
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("HTTP_CLIENT_IP");
+        }
+        
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("HTTP_X_FORWARDED_FOR");
+        }
+        
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        
+        // X-Forwarded-For可能包含多个IP，取第一个
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+        
+        return ip;
     }
 }
