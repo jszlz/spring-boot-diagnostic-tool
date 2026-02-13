@@ -33,7 +33,7 @@ public class DiagnosticProperties {
     /**
      * Number of days to retain performance data.
      */
-    private int dataRetentionDays = 7;
+    private int dataRetentionDays = 30;
 
     /**
      * Whether the REST API is enabled.

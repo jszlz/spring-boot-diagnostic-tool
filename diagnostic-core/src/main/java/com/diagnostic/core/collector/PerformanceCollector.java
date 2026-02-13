@@ -60,8 +60,11 @@ public class PerformanceCollector {
                 metricsStorage.store(metrics);
                 updateStatistics(metrics);
             } catch (Exception e) {
+                String endpoint = metrics != null && metrics.getEndpoint() != null 
+                    ? metrics.getEndpoint() 
+                    : "unknown";
                 logger.error("Error collecting metrics for endpoint {}: {}", 
-                           metrics.getEndpoint(), e.getMessage());
+                           endpoint, e.getMessage(), e);
             }
         });
     }
@@ -72,7 +75,16 @@ public class PerformanceCollector {
      * @param metrics the new metrics
      */
     private void updateStatistics(EndpointMetrics metrics) {
+        if (metrics == null) {
+            logger.warn("Received null metrics in updateStatistics");
+            return;
+        }
+        
         String endpoint = metrics.getEndpoint();
+        if (endpoint == null || endpoint.isEmpty()) {
+            logger.warn("Received metrics with null or empty endpoint");
+            return;
+        }
         
         // Add to recent metrics
         recentMetrics.computeIfAbsent(endpoint, k -> Collections.synchronizedList(new ArrayList<>()))
@@ -107,6 +119,10 @@ public class PerformanceCollector {
         // Total requests
         stats.setTotalRequests(metrics.size());
 
+        // Calculate error count
+        long errorCount = calculateErrorCount(metrics);
+        stats.setErrorCount(errorCount);
+
         // Calculate QPS (queries per second)
         double qps = calculateQPS(metrics);
         stats.setQps(qps);
@@ -125,12 +141,19 @@ public class PerformanceCollector {
         double errorRate = calculateErrorRate(metrics);
         stats.setErrorRate(errorRate);
 
-        // Update code location if available
+        // Rebuild recent errors list and status code distribution
+        rebuildErrorDetails(stats, metrics);
+
+        // Update code location and endpoint type if available
         if (!metrics.isEmpty()) {
             EndpointMetrics sample = metrics.get(0);
             if (sample.getControllerClass() != null && sample.getControllerMethod() != null) {
                 String codeLocation = sample.getControllerClass() + "." + sample.getControllerMethod();
                 stats.setCodeLocation(codeLocation);
+            }
+            // Set endpoint type from the first metric (all should be the same)
+            if (sample.getEndpointType() != null) {
+                stats.setEndpointType(sample.getEndpointType());
             }
         }
     }
@@ -218,11 +241,197 @@ public class PerformanceCollector {
             return 0.0;
         }
 
-        long errorCount = metrics.stream()
+        long errorCount = calculateErrorCount(metrics);
+        return (double) errorCount / metrics.size();
+    }
+
+    /**
+     * Calculate error count (4xx and 5xx responses).
+     *
+     * @param metrics list of metrics
+     * @return error count
+     */
+    private long calculateErrorCount(List<EndpointMetrics> metrics) {
+        if (metrics.isEmpty()) {
+            return 0;
+        }
+
+        return metrics.stream()
                 .filter(m -> m.getStatusCode() >= 400)
                 .count();
+    }
 
-        return (double) errorCount / metrics.size();
+    /**
+     * Rebuild error details list and status code distribution.
+     * This ensures error details are in sync with error count.
+     *
+     * @param stats the statistics object to update
+     * @param metrics list of all metrics
+     */
+    private void rebuildErrorDetails(EndpointStatistics stats, List<EndpointMetrics> metrics) {
+        if (stats == null) {
+            return;
+        }
+        
+        String endpoint = stats.getEndpoint();
+        
+        // First, try to rebuild from storage for data freshness
+        logger.debug("Rebuilding error details for endpoint: {} (source: storage)", endpoint);
+        rebuildErrorDetailsFromStorage(endpoint, stats);
+        
+        // If storage returned data, we're done
+        if (!stats.getRecentErrors().isEmpty()) {
+            logger.debug("Successfully rebuilt error details from storage for endpoint: {}", endpoint);
+            return;
+        }
+        
+        // Fallback: use in-memory metrics if storage is empty
+        if (metrics == null || metrics.isEmpty()) {
+            logger.debug("No metrics available for endpoint: {}", endpoint);
+            return;
+        }
+        
+        logger.debug("Rebuilding error details for endpoint: {} (source: memory fallback)", endpoint);
+
+        // Clear existing error details
+        stats.getRecentErrors().clear();
+        stats.getErrorStatusCodeDistribution().clear();
+
+        // Filter error metrics (status code >= 400)
+        List<EndpointMetrics> errorMetrics = metrics.stream()
+                .filter(m -> m.getStatusCode() >= 400)
+                .collect(Collectors.toList());
+
+        // Log warning if storage and memory counts differ significantly
+        int storageErrorCount = metricsStorage.getErrorMetrics(endpoint).size();
+        if (Math.abs(storageErrorCount - errorMetrics.size()) > 10) {
+            logger.warn("Significant difference between storage ({}) and memory ({}) error counts for endpoint: {}", 
+                       storageErrorCount, errorMetrics.size(), endpoint);
+        }
+
+        // Keep only the most recent 100 errors
+        int startIndex = Math.max(0, errorMetrics.size() - 100);
+        List<EndpointMetrics> recentErrorMetrics = errorMetrics.subList(startIndex, errorMetrics.size());
+
+        // Rebuild error details list
+        for (EndpointMetrics metric : recentErrorMetrics) {
+            com.diagnostic.core.model.ErrorDetail error = new com.diagnostic.core.model.ErrorDetail(
+                metric.getTimestamp(),
+                metric.getStatusCode(),
+                metric.getMethod(),
+                metric.getEndpoint(),
+                metric.getDuration() / 1_000_000  // Convert to milliseconds
+            );
+            stats.getRecentErrors().add(error);
+        }
+
+        // Rebuild status code distribution (use all error metrics, not just recent 100)
+        for (EndpointMetrics metric : errorMetrics) {
+            stats.getErrorStatusCodeDistribution().merge(
+                metric.getStatusCode(), 
+                1L, 
+                Long::sum
+            );
+        }
+        
+        logger.debug("Rebuilt error details from memory: {} recent errors for endpoint: {}", 
+                     stats.getRecentErrors().size(), endpoint);
+    }
+
+    /**
+     * Rebuild error details from storage for an endpoint.
+     * This ensures error details are synchronized with error count.
+     *
+     * @param endpoint the endpoint name
+     * @param stats the statistics object to update
+     */
+    private void rebuildErrorDetailsFromStorage(String endpoint, EndpointStatistics stats) {
+        logger.debug("Rebuilding error details from storage for endpoint: {}", endpoint);
+        
+        // Query storage for all error metrics
+        List<EndpointMetrics> errorMetrics = metricsStorage.getErrorMetrics(endpoint);
+        
+        logger.debug("Found {} error metrics in storage for endpoint: {}", 
+                     errorMetrics.size(), endpoint);
+        
+        // Clear existing error details
+        stats.getRecentErrors().clear();
+        stats.getErrorStatusCodeDistribution().clear();
+        
+        if (errorMetrics.isEmpty()) {
+            if (stats.getErrorCount() > 0) {
+                logger.warn("Error count is {} but no error metrics found in storage for endpoint: {}. " +
+                           "This indicates a data inconsistency.", stats.getErrorCount(), endpoint);
+            }
+            return;
+        }
+        
+        // Keep only the most recent 100 errors for the details list
+        int startIndex = Math.max(0, errorMetrics.size() - 100);
+        List<EndpointMetrics> recentErrorMetrics = errorMetrics.subList(startIndex, errorMetrics.size());
+        
+        // Rebuild error details list
+        for (EndpointMetrics metric : recentErrorMetrics) {
+            com.diagnostic.core.model.ErrorDetail error = new com.diagnostic.core.model.ErrorDetail(
+                metric.getTimestamp(),
+                metric.getStatusCode(),
+                metric.getMethod(),
+                metric.getEndpoint(),
+                metric.getDuration() / 1_000_000  // Convert nanoseconds to milliseconds
+            );
+            stats.getRecentErrors().add(error);
+        }
+        
+        // Rebuild status code distribution (use all error metrics, not just recent 100)
+        for (EndpointMetrics metric : errorMetrics) {
+            stats.getErrorStatusCodeDistribution().merge(
+                metric.getStatusCode(), 
+                1L, 
+                Long::sum
+            );
+        }
+        
+        logger.debug("Rebuilt error details: {} recent errors, {} status codes for endpoint: {}", 
+                     stats.getRecentErrors().size(), 
+                     stats.getErrorStatusCodeDistribution().size(), 
+                     endpoint);
+    }
+
+    /**
+     * Get error details for an endpoint, ensuring data freshness.
+     * This method queries storage directly to avoid stale cache issues.
+     *
+     * @param endpoint the endpoint name
+     * @return list of error details
+     */
+    public List<com.diagnostic.core.model.ErrorDetail> getErrorDetails(String endpoint) {
+        logger.debug("Getting error details for endpoint: {}", endpoint);
+        
+        // Query storage directly for error metrics
+        List<EndpointMetrics> errorMetrics = metricsStorage.getErrorMetrics(endpoint);
+        
+        logger.debug("Retrieved {} error metrics from storage for endpoint: {}", 
+                     errorMetrics.size(), endpoint);
+        
+        // Keep only the most recent 100 errors
+        int startIndex = Math.max(0, errorMetrics.size() - 100);
+        List<EndpointMetrics> recentErrorMetrics = errorMetrics.subList(startIndex, errorMetrics.size());
+        
+        // Convert to ErrorDetail objects
+        List<com.diagnostic.core.model.ErrorDetail> errorDetails = new ArrayList<>();
+        for (EndpointMetrics metric : recentErrorMetrics) {
+            com.diagnostic.core.model.ErrorDetail error = new com.diagnostic.core.model.ErrorDetail(
+                metric.getTimestamp(),
+                metric.getStatusCode(),
+                metric.getMethod(),
+                metric.getEndpoint(),
+                metric.getDuration() / 1_000_000  // Convert nanoseconds to milliseconds
+            );
+            errorDetails.add(error);
+        }
+        
+        logger.debug("Returning {} error details for endpoint: {}", errorDetails.size(), endpoint);
+        return errorDetails;
     }
 
     /**

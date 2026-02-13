@@ -1,2 +1,3 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-com.diagnostic.autoconfigure.DiagnosticAutoConfiguration
+com.diagnostic.autoconfigure.DiagnosticAutoConfiguration,\
+com.diagnostic.autoconfigure.JvmMonitoringAutoConfiguration

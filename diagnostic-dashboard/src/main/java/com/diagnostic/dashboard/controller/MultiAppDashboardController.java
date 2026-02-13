@@ -1,6 +1,7 @@
 package com.diagnostic.dashboard.controller;
 
 import com.diagnostic.dashboard.config.MonitoredAppsProperties;
+import com.diagnostic.dashboard.utils.IpUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -46,7 +47,10 @@ public class MultiAppDashboardController {
      * 获取指定应用的概览数据
      */
     @GetMapping("/overview")
-    public Map<String, Object> getOverview(@RequestParam(required = false) String appName) {
+    public Map<String, Object> getOverview(
+            @RequestParam(required = false) String appName,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         MonitoredAppsProperties.AppConfig app = getApp(appName);
         if (app == null) {
             return createEmptyOverview();
@@ -54,6 +58,14 @@ public class MultiAppDashboardController {
 
         try {
             String url = app.getUrl() + app.getDiagnosticApiPath() + "/health/summary";
+            // 添加时间范围参数
+            if (startDate != null && endDate != null) {
+                url += "?startDate=" + startDate + "&endDate=" + endDate;
+            } else if (startDate != null) {
+                url += "?startDate=" + startDate;
+            } else if (endDate != null) {
+                url += "?endDate=" + endDate;
+            }
             logger.info("Fetching overview from: {}", url);
 
             ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
@@ -74,6 +86,12 @@ public class MultiAppDashboardController {
             overview.put("highRisks", summary.getOrDefault("highSeverityRisks", 0));
             overview.put("dependencies", summary.getOrDefault("totalDependencies", 0));
             overview.put("timestamp", summary.getOrDefault("timestamp", System.currentTimeMillis()));
+            if (startDate != null) {
+                overview.put("startDate", startDate);
+            }
+            if (endDate != null) {
+                overview.put("endDate", endDate);
+            }
 
             return overview;
         } catch (Exception e) {
@@ -86,7 +104,10 @@ public class MultiAppDashboardController {
      * 获取指定应用的性能数据
      */
     @GetMapping("/performance")
-    public Map<String, Object> getPerformance(@RequestParam(required = false) String appName) {
+    public Map<String, Object> getPerformance(
+            @RequestParam(required = false) String appName,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         MonitoredAppsProperties.AppConfig app = getApp(appName);
         if (app == null) {
             return createEmptyPerformance();
@@ -94,6 +115,14 @@ public class MultiAppDashboardController {
 
         try {
             String url = app.getUrl() + app.getDiagnosticApiPath() + "/endpoints";
+            // 添加时间范围参数
+            if (startDate != null && endDate != null) {
+                url += "?startDate=" + startDate + "&endDate=" + endDate;
+            } else if (startDate != null) {
+                url += "?startDate=" + startDate;
+            } else if (endDate != null) {
+                url += "?endDate=" + endDate;
+            }
             logger.info("Fetching performance from: {}", url);
 
             @SuppressWarnings("unchecked")
@@ -115,6 +144,7 @@ public class MultiAppDashboardController {
                 ep.put("p99", s.getOrDefault("p99ResponseTime", 0.0));
                 ep.put("errorRate", s.getOrDefault("errorRate", 0.0));
                 ep.put("totalRequests", s.getOrDefault("totalRequests", 0));
+                ep.put("endpointType", s.get("endpointType"));
 
                 endpoints.add(ep);
             }
@@ -128,6 +158,12 @@ public class MultiAppDashboardController {
             result.put("appName", app.getName());
             result.put("endpoints", endpoints);
             result.put("timestamp", System.currentTimeMillis());
+            if (startDate != null) {
+                result.put("startDate", startDate);
+            }
+            if (endDate != null) {
+                result.put("endDate", endDate);
+            }
 
             return result;
         } catch (Exception e) {
@@ -234,6 +270,90 @@ public class MultiAppDashboardController {
     }
 
     /**
+     * 获取指定应用的错误详情
+     */
+    @GetMapping("/endpoint-errors")
+    public Map<String, Object> getEndpointErrors(
+            @RequestParam(required = false) String appName,
+            @RequestParam String endpoint) {
+        MonitoredAppsProperties.AppConfig app = getApp(appName);
+        if (app == null) {
+            return createEmptyErrorDetails();
+        }
+
+        try {
+            String encodedEndpoint = java.net.URLEncoder.encode(endpoint, "UTF-8");
+            String url = app.getUrl() + app.getDiagnosticApiPath() + "/endpoints/" + encodedEndpoint + "/errors";
+            logger.info("Fetching endpoint errors from: {}", url);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> errorData = restTemplate.getForObject(url, Map.class);
+
+            if (errorData == null) {
+                return createEmptyErrorDetails();
+            }
+
+            return errorData;
+        } catch (Exception e) {
+            logger.error("Error fetching endpoint errors: {}", e.getMessage());
+            return createEmptyErrorDetails();
+        }
+    }
+
+    /**
+     * 获取指定端点的IP分布数据
+     */
+    @GetMapping("/endpoint-ip-distribution")
+    public Map<String, Object> getEndpointIpDistribution(
+            @RequestParam(required = false) String appName,
+            @RequestParam String endpoint) {
+        MonitoredAppsProperties.AppConfig app = getApp(appName);
+        if (app == null) {
+            return createEmptyIpDistribution();
+        }
+
+        try {
+            String encodedEndpoint = java.net.URLEncoder.encode(endpoint, "UTF-8");
+            String url = app.getUrl() + app.getDiagnosticApiPath() + "/endpoints/" + encodedEndpoint + "/ip-distribution";
+            logger.info("Fetching IP distribution from: {}", url);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> ipData = restTemplate.getForObject(url, Map.class);
+
+            if (ipData == null) {
+                return createEmptyIpDistribution();
+            }
+
+            // 为每个IP添加地理位置信息
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> topIps = (List<Map<String, Object>>) ipData.get("topIps");
+            if (topIps != null && IpUtil.isInitialized()) {
+                for (Map<String, Object> ipInfo : topIps) {
+                    String ip = (String) ipInfo.get("ip");
+                    if (ip != null) {
+                        String cityInfo = IpUtil.getCityInfo(ip);
+                        if (cityInfo != null) {
+                            // 解析格式：中国|0|上海|上海市|0|0|0|0|0
+                            String[] parts = cityInfo.split("\\|");
+                            if (parts.length >= 4) {
+                                ipInfo.put("country", parts[0]);
+                                ipInfo.put("province", parts[2]);
+                                ipInfo.put("city", parts[3]);
+                                logger.debug("Resolved IP {}: {} {} {}", ip, parts[0], parts[2], parts[3]);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return ipData;
+        } catch (Exception e) {
+            logger.error("Error fetching IP distribution: {}", e.getMessage());
+            return createEmptyIpDistribution();
+        }
+    }
+
+    /**
      * 健康检查
      */
     @GetMapping("/health")
@@ -313,6 +433,26 @@ public class MultiAppDashboardController {
         result.put("high", 0);
         result.put("medium", 0);
         result.put("low", 0);
+        return result;
+    }
+
+    private Map<String, Object> createEmptyErrorDetails() {
+        Map<String, Object> result = new HashMap<>();
+        result.put("errorCount", 0);
+        result.put("errorRate", 0.0);
+        result.put("recentErrors", Collections.emptyList());
+        result.put("statusCodeDistribution", Collections.emptyMap());
+        return result;
+    }
+
+    private Map<String, Object> createEmptyIpDistribution() {
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalRequests", 0);
+        result.put("uniqueIpCount", 0);
+        result.put("concentrationRate", 0.0);
+        result.put("isAnomalous", false);
+        result.put("anomalyDescription", "");
+        result.put("topIps", Collections.emptyList());
         return result;
     }
 }

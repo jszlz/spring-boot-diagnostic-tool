@@ -10,6 +10,9 @@ public class EndpointMetrics {
     private String method; // GET, POST, etc.
     private String controllerClass;
     private String controllerMethod;
+    private EndpointType endpointType; // BUSINESS or DIAGNOSTIC
+    private String clientIp;        // 客户端IP地址
+    private String userAgent;       // 用户代理
 
     public EndpointMetrics() {
     }
@@ -22,6 +25,9 @@ public class EndpointMetrics {
         this.method = builder.method;
         this.controllerClass = builder.controllerClass;
         this.controllerMethod = builder.controllerMethod;
+        this.endpointType = builder.endpointType;
+        this.clientIp = builder.clientIp;
+        this.userAgent = builder.userAgent;
     }
 
     public static Builder builder() {
@@ -84,6 +90,30 @@ public class EndpointMetrics {
         this.controllerMethod = controllerMethod;
     }
 
+    public EndpointType getEndpointType() {
+        return endpointType;
+    }
+
+    public void setEndpointType(EndpointType endpointType) {
+        this.endpointType = endpointType;
+    }
+
+    public String getClientIp() {
+        return clientIp;
+    }
+
+    public void setClientIp(String clientIp) {
+        this.clientIp = clientIp;
+    }
+
+    public String getUserAgent() {
+        return userAgent;
+    }
+
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -108,6 +138,9 @@ public class EndpointMetrics {
         private String method;
         private String controllerClass;
         private String controllerMethod;
+        private EndpointType endpointType;
+        private String clientIp;
+        private String userAgent;
 
         public Builder endpoint(String endpoint) {
             this.endpoint = endpoint;
@@ -141,6 +174,21 @@ public class EndpointMetrics {
 
         public Builder controllerMethod(String controllerMethod) {
             this.controllerMethod = controllerMethod;
+            return this;
+        }
+
+        public Builder endpointType(EndpointType endpointType) {
+            this.endpointType = endpointType;
+            return this;
+        }
+
+        public Builder clientIp(String clientIp) {
+            this.clientIp = clientIp;
+            return this;
+        }
+
+        public Builder userAgent(String userAgent) {
+            this.userAgent = userAgent;
             return this;
         }
 

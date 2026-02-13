@@ -54,6 +54,13 @@ public class MetricsStorage {
         }
 
         String endpoint = metrics.getEndpoint();
+        
+        // Log error metrics storage at DEBUG level
+        if (metrics.getStatusCode() >= 400) {
+            logger.debug("Storing error metric: endpoint={}, statusCode={}, timestamp={}", 
+                        endpoint, metrics.getStatusCode(), metrics.getTimestamp());
+        }
+        
         memoryCache.computeIfAbsent(endpoint, k -> Collections.synchronizedList(new ArrayList<>()))
                    .add(metrics);
 
@@ -73,6 +80,45 @@ public class MetricsStorage {
     public List<EndpointMetrics> getMetrics(String endpoint) {
         List<EndpointMetrics> metrics = memoryCache.get(endpoint);
         return metrics != null ? new ArrayList<>(metrics) : new ArrayList<>();
+    }
+    /**
+     * Get all error metrics for a specific endpoint from memory cache.
+     * Returns only metrics with status code >= 400.
+     *
+     * @param endpoint the endpoint name
+     * @return list of error metrics
+     */
+    public List<EndpointMetrics> getErrorMetrics(String endpoint) {
+        List<EndpointMetrics> allMetrics = getMetrics(endpoint);
+        List<EndpointMetrics> errorMetrics = allMetrics.stream()
+                .filter(m -> m.getStatusCode() >= 400)
+                .collect(Collectors.toList());
+
+        logger.debug("Found {} error metrics for endpoint {} out of {} total metrics",
+                     errorMetrics.size(), endpoint, allMetrics.size());
+
+        return errorMetrics;
+    }
+
+    /**
+     * Get error metrics for a specific endpoint within a time range.
+     * Returns only metrics with status code >= 400.
+     *
+     * @param endpoint the endpoint name
+     * @param startTime start timestamp in milliseconds
+     * @param endTime end timestamp in milliseconds
+     * @return list of error metrics within the time range
+     */
+    public List<EndpointMetrics> getErrorMetrics(String endpoint, long startTime, long endTime) {
+        List<EndpointMetrics> allMetrics = getMetrics(endpoint, startTime, endTime);
+        List<EndpointMetrics> errorMetrics = allMetrics.stream()
+                .filter(m -> m.getStatusCode() >= 400)
+                .collect(Collectors.toList());
+
+        logger.debug("Found {} error metrics for endpoint {} in time range [{}, {}]",
+                     errorMetrics.size(), endpoint, startTime, endTime);
+
+        return errorMetrics;
     }
 
     /**

@@ -126,6 +126,13 @@ public class DiagnosticAutoConfiguration implements WebMvcConfigurer {
         return new TrendAnalyzer(metricsStorage);
     }
 
+    @Bean
+    @ConditionalOnMissingBean
+    public com.diagnostic.core.analyzer.IpAnalyzer ipAnalyzer() {
+        logger.info("IP Analyzer initialized");
+        return new com.diagnostic.core.analyzer.IpAnalyzer();
+    }
+
     // Report generators
 
     @Bean
@@ -149,16 +156,17 @@ public class DiagnosticAutoConfiguration implements WebMvcConfigurer {
         return new HtmlReportExporter();
     }
 
-    // REST API
+    // REST API Controllers
 
     @Bean
     @ConditionalOnProperty(name = "diagnostic.api.enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnMissingBean
-    public DiagnosticApiController diagnosticApiController(ReportGenerator reportGenerator,
-                                                          TopologyBuilder topologyBuilder,
-                                                          PerformanceCollector performanceCollector,
-                                                          HealthAnalyzer healthAnalyzer) {
-        logger.info("Diagnostic REST API enabled");
+    public DiagnosticApiController diagnosticApiController(
+            ReportGenerator reportGenerator,
+            TopologyBuilder topologyBuilder,
+            PerformanceCollector performanceCollector,
+            HealthAnalyzer healthAnalyzer) {
+        logger.info("Creating DiagnosticApiController bean");
         return new DiagnosticApiController(reportGenerator, topologyBuilder, performanceCollector, healthAnalyzer);
     }
 

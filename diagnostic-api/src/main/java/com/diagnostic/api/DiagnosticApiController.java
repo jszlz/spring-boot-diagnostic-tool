@@ -1,17 +1,23 @@
 package com.diagnostic.api;
 
 import com.diagnostic.core.analyzer.HealthAnalyzer;
+import com.diagnostic.core.analyzer.IpAnalyzer;
+import com.diagnostic.core.annotation.DiagnosticEndpoint;
 import com.diagnostic.core.collector.PerformanceCollector;
 import com.diagnostic.core.model.ArchitectureRisk;
 import com.diagnostic.core.model.DependencyTopology;
+import com.diagnostic.core.model.EndpointIpDistribution;
 import com.diagnostic.core.model.EndpointStatistics;
 import com.diagnostic.core.model.HealthReport;
+import com.diagnostic.core.storage.MetricsStorage;
 import com.diagnostic.core.topology.TopologyBuilder;
 import com.diagnostic.report.ReportGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -32,15 +38,41 @@ public class DiagnosticApiController {
     private final TopologyBuilder topologyBuilder;
     private final PerformanceCollector performanceCollector;
     private final HealthAnalyzer healthAnalyzer;
+    private IpAnalyzer ipAnalyzer;
+    private MetricsStorage metricsStorage;
 
-    public DiagnosticApiController(ReportGenerator reportGenerator,
-                                  TopologyBuilder topologyBuilder,
-                                  PerformanceCollector performanceCollector,
-                                  HealthAnalyzer healthAnalyzer) {
+    @Autowired
+    public DiagnosticApiController(
+            ReportGenerator reportGenerator,
+            TopologyBuilder topologyBuilder,
+            PerformanceCollector performanceCollector,
+            HealthAnalyzer healthAnalyzer) {
         this.reportGenerator = reportGenerator;
         this.topologyBuilder = topologyBuilder;
         this.performanceCollector = performanceCollector;
         this.healthAnalyzer = healthAnalyzer;
+        
+        logger.info("DiagnosticApiController initialized (basic)");
+    }
+    
+    @Autowired(required = false)
+    public void setIpAnalyzer(IpAnalyzer ipAnalyzer) {
+        this.ipAnalyzer = ipAnalyzer;
+        if (ipAnalyzer != null) {
+            logger.info("IpAnalyzer injected - IP distribution analysis enabled");
+        } else {
+            logger.warn("IpAnalyzer not available - IP distribution analysis will be disabled");
+        }
+    }
+    
+    @Autowired(required = false)
+    public void setMetricsStorage(MetricsStorage metricsStorage) {
+        this.metricsStorage = metricsStorage;
+        if (metricsStorage != null) {
+            logger.info("MetricsStorage injected");
+        } else {
+            logger.warn("MetricsStorage not available - some features may be limited");
+        }
     }
 
     /**
@@ -48,6 +80,7 @@ public class DiagnosticApiController {
      *
      * @return health report
      */
+    @DiagnosticEndpoint
     @GetMapping("/health")
     public ResponseEntity<HealthReport> getHealthReport() {
         try {
@@ -65,6 +98,7 @@ public class DiagnosticApiController {
      *
      * @return summary map
      */
+    @DiagnosticEndpoint
     @GetMapping("/health/summary")
     public ResponseEntity<Map<String, Object>> getHealthSummary() {
         try {
@@ -82,6 +116,7 @@ public class DiagnosticApiController {
      *
      * @return dependency topology
      */
+    @DiagnosticEndpoint
     @GetMapping("/topology")
     public ResponseEntity<DependencyTopology> getTopology() {
         try {
@@ -132,6 +167,7 @@ public class DiagnosticApiController {
      *
      * @return map of endpoint to statistics
      */
+    @DiagnosticEndpoint
     @GetMapping("/endpoints")
     public ResponseEntity<Map<String, EndpointStatistics>> getAllEndpoints() {
         try {
@@ -150,6 +186,7 @@ public class DiagnosticApiController {
      * @param name the endpoint name
      * @return endpoint statistics
      */
+    @DiagnosticEndpoint
     @GetMapping("/endpoints/{name}")
     public ResponseEntity<EndpointStatistics> getEndpoint(@PathVariable String name) {
         try {
@@ -168,10 +205,54 @@ public class DiagnosticApiController {
     }
 
     /**
+     * Get error details for a specific endpoint.
+     *
+     * @param name the endpoint name
+     * @return error details
+     */
+    @DiagnosticEndpoint
+    @GetMapping("/endpoints/{name}/errors")
+    public ResponseEntity<Map<String, Object>> getEndpointErrors(@PathVariable String name) {
+        try {
+            logger.info("Getting error details for endpoint: {}", name);
+            
+            // Refresh statistics to ensure data freshness
+            performanceCollector.refreshStatistics(name);
+            
+            EndpointStatistics stats = performanceCollector.getStatistics(name);
+            
+            if (stats == null) {
+                logger.warn("No statistics found for endpoint: {}", name);
+                return ResponseEntity.notFound().build();
+            }
+            
+            // Get error details directly from storage for maximum freshness
+            List<com.diagnostic.core.model.ErrorDetail> errorDetails = 
+                performanceCollector.getErrorDetails(name);
+            
+            Map<String, Object> errorInfo = new HashMap<>();
+            errorInfo.put("endpoint", name);
+            errorInfo.put("errorCount", stats.getErrorCount());
+            errorInfo.put("errorRate", stats.getErrorRate());
+            errorInfo.put("recentErrors", errorDetails);
+            errorInfo.put("statusCodeDistribution", stats.getErrorStatusCodeDistribution());
+            
+            logger.info("Returning error details for endpoint {}: errorCount={}, recentErrors={}", 
+                       name, stats.getErrorCount(), errorDetails.size());
+            
+            return ResponseEntity.ok(errorInfo);
+        } catch (Exception e) {
+            logger.error("Error getting error details for {}: {}", name, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
      * Get all identified architecture risks.
      *
      * @return list of risks
      */
+    @DiagnosticEndpoint
     @GetMapping("/risks")
     public ResponseEntity<List<ArchitectureRisk>> getRisks() {
         try {
@@ -256,5 +337,45 @@ public class DiagnosticApiController {
         status.put("service", "Diagnostic Tool API");
         status.put("timestamp", String.valueOf(System.currentTimeMillis()));
         return ResponseEntity.ok(status);
+    }
+
+    /**
+     * Get IP distribution analysis for a specific endpoint.
+     *
+     * @param name the endpoint name
+     * @return IP distribution information
+     */
+    @DiagnosticEndpoint
+    @GetMapping("/endpoints/{name}/ip-distribution")
+    public ResponseEntity<EndpointIpDistribution> getEndpointIpDistribution(@PathVariable String name) {
+        try {
+            // URL decode the endpoint name (e.g., "POST%20%2Faccount%2FgetMy" -> "POST /account/getMy")
+            String decodedName = java.net.URLDecoder.decode(name, "UTF-8");
+            logger.info("Getting IP distribution for endpoint: {} (decoded from: {})", decodedName, name);
+            
+            if (ipAnalyzer == null || metricsStorage == null) {
+                logger.error("IpAnalyzer or MetricsStorage not available");
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).build();
+            }
+            
+            // Get all metrics for this endpoint
+            List<com.diagnostic.core.model.EndpointMetrics> metrics = metricsStorage.getMetrics(decodedName);
+            
+            if (metrics == null || metrics.isEmpty()) {
+                logger.warn("No metrics found for endpoint: {}", decodedName);
+                return ResponseEntity.notFound().build();
+            }
+            
+            // Analyze IP distribution
+            EndpointIpDistribution distribution = ipAnalyzer.analyzeEndpointIpDistribution(decodedName, metrics);
+            
+            logger.info("IP distribution analysis complete for endpoint {}: {} unique IPs, concentration rate: {}%", 
+                       decodedName, distribution.getUniqueIpCount(), String.format("%.2f", distribution.getConcentrationRate() * 100));
+            
+            return ResponseEntity.ok(distribution);
+        } catch (Exception e) {
+            logger.error("Error getting IP distribution for {}: {}", name, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 }
