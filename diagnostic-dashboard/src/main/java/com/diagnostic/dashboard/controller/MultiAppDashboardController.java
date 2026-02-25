@@ -332,14 +332,18 @@ public class MultiAppDashboardController {
                     String ip = (String) ipInfo.get("ip");
                     if (ip != null) {
                         String cityInfo = IpUtil.getCityInfo(ip);
+                        logger.info("cityInfo: {}", cityInfo);
                         if (cityInfo != null) {
-                            // 解析格式：中国|0|上海|上海市|0|0|0|0|0
+                            // 解析格式：
+                            // 普通省份：中国|广东省|广州市|电信
+                            // 直辖市：中国|上海|上海市|电信
                             String[] parts = cityInfo.split("\\|");
                             if (parts.length >= 4) {
                                 ipInfo.put("country", parts[0]);
-                                ipInfo.put("province", parts[2]);
-                                ipInfo.put("city", parts[3]);
-                                logger.debug("Resolved IP {}: {} {} {}", ip, parts[0], parts[2], parts[3]);
+                                ipInfo.put("province", parts[1]);
+                                ipInfo.put("city", parts[2]);
+                                ipInfo.put("isp", parts[3]);
+                                logger.debug("Resolved IP {}: {} {} {} {}", ip, parts[0], parts[1], parts[2], parts[3]);
                             }
                         }
                     }

@@ -7,12 +7,12 @@ export const dashboardApi = {
     return axios.get(`${API_BASE}/apps`)
   },
   
-  getOverview(appName) {
-    return axios.get(`${API_BASE}/overview`, { params: { appName } })
+  getOverview(appName, startDate, endDate) {
+    return axios.get(`${API_BASE}/overview`, { params: { appName, startDate, endDate } })
   },
   
-  getPerformance(appName) {
-    return axios.get(`${API_BASE}/performance`, { params: { appName } })
+  getPerformance(appName, startDate, endDate) {
+    return axios.get(`${API_BASE}/performance`, { params: { appName, startDate, endDate } })
   },
   
   getTopology(appName) {
@@ -29,5 +29,17 @@ export const dashboardApi = {
   
   getHealth(appName) {
     return axios.get(`${API_BASE}/health`, { params: { appName } })
+  },
+  
+  getEndpointErrors(appName, endpoint) {
+    return axios.get(`${API_BASE}/endpoint-errors`, { 
+      params: { appName, endpoint } 
+    })
+  },
+  
+  getEndpointIpDistribution(appName, endpoint) {
+    return axios.get(`${API_BASE}/endpoint-ip-distribution`, { 
+      params: { appName, endpoint } 
+    })
   }
 }

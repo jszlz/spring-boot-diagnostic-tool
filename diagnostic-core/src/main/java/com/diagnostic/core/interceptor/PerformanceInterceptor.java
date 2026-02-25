@@ -72,6 +72,13 @@ public class PerformanceInterceptor implements HandlerInterceptor {
         }
 
         try {
+            // 跳过IP分布查询接口的监控
+            String requestUri = request.getRequestURI();
+            if (requestUri.contains("/ip-distribution")) {
+                logger.debug("Skipping monitoring for IP distribution endpoint: {}", requestUri);
+                return;
+            }
+            
             long duration = System.nanoTime() - startTime;
             String endpointName = (String) request.getAttribute(ENDPOINT_NAME_ATTRIBUTE);
             

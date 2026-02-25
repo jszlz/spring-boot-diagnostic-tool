@@ -1,33 +1,32 @@
 <template>
   <div id="app">
     <el-container>
-      <el-header class="modern-header">
+      <el-header class="keen-header">
         <div class="header-content">
           <div class="logo-section">
-            <div class="logo-icon">🔍</div>
+            <div class="logo-icon">📊</div>
             <h1>Spring Boot 诊断监控</h1>
           </div>
-          <el-menu mode="horizontal" :default-active="activeMenu" router class="nav-menu">
+          <el-menu mode="horizontal" :default-active="activeMenu" router class="keen-nav-menu">
             <el-menu-item index="/">
-              <span class="menu-icon">📊</span>
               <span>概览</span>
             </el-menu-item>
             <el-menu-item index="/performance">
-              <span class="menu-icon">⚡</span>
               <span>性能监控</span>
             </el-menu-item>
+            <el-menu-item index="/jvm">
+              <span>JVM监控</span>
+            </el-menu-item>
             <el-menu-item index="/topology">
-              <span class="menu-icon">🌐</span>
               <span>拓扑图</span>
             </el-menu-item>
             <el-menu-item index="/risks">
-              <span class="menu-icon">⚠️</span>
               <span>风险告警</span>
             </el-menu-item>
           </el-menu>
         </div>
       </el-header>
-      <el-main class="modern-main">
+      <el-main class="keen-main">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -57,20 +56,20 @@ export default {
 }
 
 #app {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--body-bg);
 }
 
 .el-container {
   height: 100%;
 }
 
-/* 现代化头部 */
-.modern-header {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+/* Keen 风格头部 */
+.keen-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-xs);
   padding: 0;
   height: 70px !important;
 }
@@ -80,7 +79,7 @@ export default {
   align-items: center;
   justify-content: space-between;
   height: 100%;
-  padding: 0 30px;
+  padding: 0 2rem;
 }
 
 .logo-section {
@@ -90,110 +89,62 @@ export default {
 }
 
 .logo-icon {
-  font-size: 32px;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+  font-size: 28px;
 }
 
 .logo-section h1 {
-  font-size: 22px;
-  font-weight: 600;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-dark);
 }
 
-/* 导航菜单 */
-.nav-menu {
+/* Keen 风格导航菜单 */
+.keen-nav-menu {
   border-bottom: none !important;
   background-color: transparent !important;
 }
 
-.nav-menu .el-menu-item {
-  color: #606266;
+.keen-nav-menu .el-menu-item {
+  color: var(--text-gray);
   border-bottom: 3px solid transparent;
-  font-weight: 500;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  font-weight: 600;
+  font-size: 0.925rem;
+  transition: all 0.2s ease;
+  height: 70px;
+  line-height: 70px;
+  padding: 0 1.5rem;
 }
 
-.menu-icon {
-  font-size: 18px;
+.keen-nav-menu .el-menu-item:hover {
+  background: transparent;
+  color: var(--primary);
 }
 
-.nav-menu .el-menu-item:hover {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  color: #667eea;
-  transform: translateY(-2px);
-}
-
-.nav-menu .el-menu-item.is-active {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
-  border-bottom-color: #667eea;
-  color: #667eea;
+.keen-nav-menu .el-menu-item.is-active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: transparent;
 }
 
 /* 主内容区 */
-.modern-main {
-  background: transparent;
-  padding: 30px;
+.keen-main {
+  background: var(--body-bg);
+  padding: 2rem;
   overflow-y: auto;
 }
 
 /* 页面切换动画 */
 .fade-enter-active, .fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .fade-enter-from {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(10px);
 }
 
 .fade-leave-to {
   opacity: 0;
-  transform: translateY(-20px);
-}
-
-/* 全局卡片样式 */
-.el-card {
-  border-radius: 16px;
-  border: none;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-}
-
-.el-card:hover {
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-}
-
-/* 滚动条美化 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  transform: translateY(-10px);
 }
 </style>

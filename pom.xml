@@ -15,7 +15,7 @@
 
     <developers>
         <developer>
-            <name>剑神卓凌昭</name>
+            <name>jszlz</name>
             <roles>
                 <role>Author</role>
                 <role>Developer</role>
@@ -103,4 +103,26 @@
             </plugins>
         </pluginManagement>
     </build>
+
+    <repositories>
+        <repository>
+            <id>internal-repo</id>
+            <name>Internal Repository</name>
+            <url>http://106.15.39.108:8081/repository/internal-releases/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <distributionManagement>
+        <repository>
+            <id>internal-snapshot</id>
+            <name>Internal snapshot</name>
+            <url>http://106.15.39.108:8081/repository/internal-snapshot/</url>
+        </repository>
+    </distributionManagement>
 </project>
