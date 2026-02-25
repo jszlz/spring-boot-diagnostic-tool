@@ -987,7 +987,7 @@ export default {
       const provinceCityMap = {}
       
       topIps.forEach(ip => {
-        console.log('Processing IP:', ip.ip, 'City:', ip.city, 'Province:', ip.province, 'Country:', ip.country)
+        console.log('Processing IP:', ip.ip, 'City:', ip.city, 'Province:', ip.province, 'Country:', ip.country, 'RequestCount:', ip.requestCount)
         if ((ip.city || ip.province) && ip.requestCount > 0) {
           // 确保省份名称有效
           let provinceName = ip.province
@@ -1006,21 +1006,23 @@ export default {
             provinceName = provinceNormalizationMap[provinceName]
           }
           
+          // 确保省份城市映射存在
+          if (!provinceCityMap[provinceName]) {
+            provinceCityMap[provinceName] = {
+              totalRequests: 0,
+              cities: {}
+            }
+          }
+          
           // 如果有城市信息且城市有效
           if (ip.city && ip.city !== '0') {
             // 确保城市名称有效
             let cityName = ip.city
             if (cityName === '0') {
               console.log('过滤无效城市:', cityName)
+              // 即使城市无效，也要累加省份总请求数
+              provinceCityMap[provinceName].totalRequests += ip.requestCount
               return
-            }
-            
-            // 将城市添加到对应省份的城市列表中
-            if (!provinceCityMap[provinceName]) {
-              provinceCityMap[provinceName] = {
-                totalRequests: 0,
-                cities: {}
-              }
             }
             
             // 累加省份总请求数
@@ -1032,15 +1034,15 @@ export default {
             }
             provinceCityMap[provinceName].cities[cityName] += ip.requestCount
             
+            console.log(`添加城市到省份 ${provinceName}: ${cityName} 请求数: ${ip.requestCount}`)
+            console.log(`当前 ${provinceName} 总请求数: ${provinceCityMap[provinceName].totalRequests}`)
+            console.log(`当前 ${cityName} 总请求数: ${provinceCityMap[provinceName].cities[cityName]}`)
+            
           } else {
             // 没有城市信息，只累加省份总请求数
-            if (!provinceCityMap[provinceName]) {
-              provinceCityMap[provinceName] = {
-                totalRequests: 0,
-                cities: {}
-              }
-            }
             provinceCityMap[provinceName].totalRequests += ip.requestCount
+            console.log(`添加无城市信息到省份 ${provinceName}: 请求数: ${ip.requestCount}`)
+            console.log(`当前 ${provinceName} 总请求数: ${provinceCityMap[provinceName].totalRequests}`)
           }
         }
       })
@@ -1083,7 +1085,23 @@ export default {
           trigger: 'item',
           formatter: function(params) {
             let html = `<div style="font-weight: bold; margin-bottom: 8px;">${params.name}</div>`
-            html += `<div>总请求次数: ${params.value[1] || params.value}</div>`
+            let totalRequests = params.value[1] || params.value
+            html += `<div>总请求次数: ${totalRequests}</div>`
+            
+            // 计算有城市信息的请求数总和
+            let cityRequestsTotal = 0
+            if (params.data.cities && Object.keys(params.data.cities).length > 0) {
+              cityRequestsTotal = Object.values(params.data.cities).reduce((sum, count) => sum + count, 0)
+            }
+            
+            // 计算无城市信息的请求数
+            let noCityRequests = totalRequests - cityRequestsTotal
+            
+            // 显示请求数明细
+            html += `<div>有城市信息: ${cityRequestsTotal}</div>`
+            if (noCityRequests > 0) {
+              html += `<div>无城市信息: ${noCityRequests}</div>`
+            }
             
             // 显示该省份内的城市请求数量
             if (params.data.cities && Object.keys(params.data.cities).length > 0) {
