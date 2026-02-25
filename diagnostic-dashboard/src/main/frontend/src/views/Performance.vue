@@ -983,89 +983,76 @@ export default {
         '澳门特别行政区': '澳门'
       }
       
-      // 城市经纬度映射表（部分主要城市）
-      const cityCoordinates = {
-        '北京市': [116.4074, 39.9042],
-        '上海市': [121.4737, 31.2304],
-        '广州市': [113.2644, 23.1291],
-        '深圳市': [114.0579, 22.5431],
-        '杭州市': [120.1551, 30.2741],
-        '南京市': [118.7778, 32.0603],
-        '武汉市': [114.3055, 30.5928],
-        '成都市': [104.0668, 30.5728],
-        '重庆市': [106.5516, 29.5630],
-        '天津市': [117.2009, 39.0842],
-        '郑州市': [113.6254, 34.7466],
-        '西安市': [108.9402, 34.3416],
-        '苏州市': [120.5853, 31.2989],
-        '长沙市': [112.9822, 28.1941],
-        '沈阳市': [123.4315, 41.8057],
-        '青岛市': [120.3826, 36.0671],
-        '宁波市': [121.5497, 29.8683],
-        '东莞市': [113.7510, 23.0418],
-        '无锡市': [120.3190, 31.5731],
-        '福州市': [119.2958, 26.0745],
-        '厦门市': [118.0819, 24.4798],
-        '哈尔滨市': [126.6424, 45.7659],
-        '济南市': [117.1201, 36.6512],
-        '长春市': [125.3240, 43.8868],
-        '石家庄市': [114.5149, 38.0428],
-        '昆明市': [102.7122, 25.0406],
-        '南昌市': [115.8922, 28.6765],
-        '太原市': [112.5489, 37.8570],
-        '南宁市': [108.3200, 22.8241],
-        '贵阳市': [106.6504, 26.6673],
-        '合肥市': [117.2830, 31.8612],
-        '乌鲁木齐市': [87.6177, 43.7928],
-        '兰州市': [103.8343, 36.0594],
-        '银川市': [106.2320, 38.4876],
-        '西宁市': [101.7783, 36.6232],
-        '拉萨市': [91.1175, 29.6490],
-        '廊坊市': [116.7052, 39.5393],
-        '新乡市': [113.8953, 35.3028],
-        '郑州市': [113.6254, 34.7466]
-      }
+      // 按省份分组城市数据
+      const provinceCityMap = {}
       
       topIps.forEach(ip => {
         console.log('Processing IP:', ip.ip, 'City:', ip.city, 'Province:', ip.province, 'Country:', ip.country)
         if ((ip.city || ip.province) && ip.requestCount > 0) {
-          // 尝试使用城市作为主要显示单位
+          // 确保省份名称有效
+          let provinceName = ip.province
+          if (!provinceName || provinceName === '0') {
+            console.log('过滤无效省份:', provinceName)
+            return
+          }
+          
+          // 处理直辖市
+          if (municipalityMap[provinceName]) {
+            provinceName = municipalityMap[provinceName]
+          }
+          
+          // 标准化省份名称
+          if (provinceNormalizationMap[provinceName]) {
+            provinceName = provinceNormalizationMap[provinceName]
+          }
+          
+          // 如果有城市信息且城市有效
           if (ip.city && ip.city !== '0') {
-            // 检查城市是否在经纬度映射表中
-            if (cityCoordinates[ip.city]) {
-              // 城市在映射表中，使用经纬度坐标
-              const [longitude, latitude] = cityCoordinates[ip.city]
-              geoData.push({
-                name: ip.city,
-                value: [longitude, latitude, ip.requestCount],
-                city: ip.city,
-                province: ip.province,
-                isp: ip.isp
-              })
-              console.log('添加城市到geoData:', { name: ip.city, value: [longitude, latitude, ip.requestCount], city: ip.city, province: ip.province, isp: ip.isp })
-            } else if (ip.province) {
-              // 城市不在映射表中，但有省份，使用省份
-              geoData.push({
-                name: ip.province,
-                value: ip.requestCount,
-                city: ip.city,
-                province: ip.province,
-                isp: ip.isp
-              })
-              console.log('添加省份到geoData:', { name: ip.province, value: ip.requestCount, city: ip.city, province: ip.province, isp: ip.isp })
+            // 确保城市名称有效
+            let cityName = ip.city
+            if (cityName === '0') {
+              console.log('过滤无效城市:', cityName)
+              return
             }
-          } else if (ip.province) {
-            // 没有城市，使用省份
-            geoData.push({
-              name: ip.province,
-              value: ip.requestCount,
-              city: ip.city,
-              province: ip.province,
-              isp: ip.isp
-            })
-            console.log('添加省份到geoData:', { name: ip.province, value: ip.requestCount, city: ip.city, province: ip.province, isp: ip.isp })
+            
+            // 将城市添加到对应省份的城市列表中
+            if (!provinceCityMap[provinceName]) {
+              provinceCityMap[provinceName] = {
+                totalRequests: 0,
+                cities: {}
+              }
+            }
+            
+            // 累加省份总请求数
+            provinceCityMap[provinceName].totalRequests += ip.requestCount
+            
+            // 添加或更新城市请求数
+            if (!provinceCityMap[provinceName].cities[cityName]) {
+              provinceCityMap[provinceName].cities[cityName] = 0
+            }
+            provinceCityMap[provinceName].cities[cityName] += ip.requestCount
+            
+          } else {
+            // 没有城市信息，只累加省份总请求数
+            if (!provinceCityMap[provinceName]) {
+              provinceCityMap[provinceName] = {
+                totalRequests: 0,
+                cities: {}
+              }
+            }
+            provinceCityMap[provinceName].totalRequests += ip.requestCount
           }
         }
+      })
+      
+      // 构建省份级别的geoData
+      Object.entries(provinceCityMap).forEach(([provinceName, data]) => {
+        geoData.push({
+          name: provinceName,
+          value: data.totalRequests,
+          cities: data.cities  // 保存城市数据，用于tooltip显示
+        })
+        console.log('添加省份到geoData:', { name: provinceName, value: data.totalRequests, cities: data.cities })
       })
       console.log('最终geoData:', geoData)
       console.log('Geo data for map:', geoData)
@@ -1093,28 +1080,39 @@ export default {
             console.log('尝试渲染地图...')
             chart2.setOption({
               tooltip: {
-                trigger: 'item',
-                formatter: function(params) {
-                  let html = `<div style="font-weight: bold; margin-bottom: 8px;">${params.name}</div>`
-                  html += `<div>请求次数: ${params.value[1] || params.value}</div>`
-                  if (params.data.city) {
-                    html += `<div>城市: ${params.data.city}</div>`
-                  }
-                  if (params.data.province) {
-                    html += `<div>省份: ${params.data.province}</div>`
-                  }
-                  if (params.data.isp) {
-                    html += `<div>运营商: ${params.data.isp}</div>`
-                  }
-                  return html
-                },
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                borderColor: '#e2e8f0',
-                borderWidth: 1,
-                textStyle: { color: '#1e293b', fontSize: 14 },
-                padding: [12, 16],
-                extraCssText: 'border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);'
-              },
+          trigger: 'item',
+          formatter: function(params) {
+            let html = `<div style="font-weight: bold; margin-bottom: 8px;">${params.name}</div>`
+            html += `<div>总请求次数: ${params.value[1] || params.value}</div>`
+            
+            // 显示该省份内的城市请求数量
+            if (params.data.cities && Object.keys(params.data.cities).length > 0) {
+              html += `<div style="margin-top: 8px; font-weight: bold;">城市分布:</div>`
+              
+              // 将城市按请求数排序，显示前5个城市
+              const sortedCities = Object.entries(params.data.cities)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+              
+              sortedCities.forEach(([cityName, requestCount]) => {
+                html += `<div>${cityName}: ${requestCount}</div>`
+              })
+              
+              // 如果城市数量超过5个，显示省略信息
+              if (Object.keys(params.data.cities).length > 5) {
+                html += `<div style="color: #64748b; font-size: 12px;">...</div>`
+              }
+            }
+            
+            return html
+          },
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          borderColor: '#e2e8f0',
+          borderWidth: 1,
+          textStyle: { color: '#1e293b', fontSize: 14 },
+          padding: [12, 16],
+          extraCssText: 'border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);'
+        },
               visualMap: {
           min: 0,
           max: Math.max(...geoData.map(item => {
@@ -1175,85 +1173,6 @@ export default {
               itemStyle: {
                 areaColor: '#dbeafe'
               }
-            }
-          },
-          {
-            name: '城市请求数',
-            type: 'effectScatter',
-            coordinateSystem: 'geo',
-            data: geoData.map(item => {
-              // 检查value是否是数组（经纬度格式）
-              if (Array.isArray(item.value) && item.value.length === 3) {
-                // 已经是经纬度格式 [longitude, latitude, value]
-                return {
-                  name: item.city || item.name,
-                  value: item.value,
-                  city: item.city,
-                  province: item.province,
-                  isp: item.isp
-                }
-              } else {
-                // 不是经纬度格式，使用名称和值
-                return {
-                  name: item.city || item.name,
-                  value: [item.name, item.value],
-                  city: item.city,
-                  province: item.province,
-                  isp: item.isp
-                }
-              }
-            }),
-            symbolSize: function(val) {
-              // 处理不同格式的value
-              if (Array.isArray(val)) {
-                if (val.length === 3) {
-                  // [longitude, latitude, value]
-                  return Math.max(Math.min(val[2] / 5, 30), 8)
-                } else if (val.length === 2) {
-                  // [name, value]
-                  return Math.max(Math.min(val[1] / 5, 30), 8)
-                }
-              }
-              // 单个值
-              return Math.max(Math.min(val / 5, 30), 8)
-            },
-            label: {
-              show: true,
-              formatter: '{b}',
-              position: 'right',
-              color: '#1e293b',
-              fontSize: 11,
-              fontWeight: 'bold'
-            },
-            itemStyle: {
-              color: '#3b82f6',
-              opacity: 0.9
-            },
-            emphasis: {
-              itemStyle: {
-                color: '#2563eb',
-                opacity: 1
-              },
-              label: {
-                show: true,
-                formatter: function(params) {
-                  let value = params.value
-                  if (Array.isArray(value)) {
-                    value = value[value.length - 1]
-                  }
-                  return `${params.name}\n请求数: ${value}`
-                },
-                position: 'right',
-                color: '#1e293b',
-                fontSize: 12,
-                fontWeight: 'bold'
-              }
-            },
-            rippleEffect: {
-              show: true,
-              period: 4,
-              scale: 2,
-              brushType: 'stroke'
             }
           }
         ]
