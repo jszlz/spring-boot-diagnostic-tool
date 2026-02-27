@@ -187,4 +187,13 @@ public class DiagnosticAutoConfiguration implements WebMvcConfigurer {
         registry.addInterceptor(interceptor);
         logger.info("Performance interceptor registered");
     }
+
+    // Shutdown hook for metrics storage
+    @Bean
+    public org.springframework.context.ApplicationListener<org.springframework.context.event.ContextClosedEvent> metricsStorageShutdownHook(MetricsStorage metricsStorage) {
+        return event -> {
+            metricsStorage.flushAll();
+            logger.info("Flushed all metrics to disk during application shutdown");
+        };
+    }
 }

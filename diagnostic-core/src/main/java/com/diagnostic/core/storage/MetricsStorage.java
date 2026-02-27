@@ -39,6 +39,64 @@ public class MetricsStorage {
     public MetricsStorage(int dataRetentionDays) {
         this.dataRetentionDays = dataRetentionDays;
         ensureStorageDirectoryExists();
+        loadAllFromDisk();
+    }
+    
+    /**
+     * Load all metrics from disk into memory cache on startup.
+     */
+    private void loadAllFromDisk() {
+        try {
+            File storageDir = new File(STORAGE_DIR);
+            if (!storageDir.exists()) {
+                return;
+            }
+
+            File[] files = storageDir.listFiles();
+            if (files == null) {
+                return;
+            }
+
+            int loadedCount = 0;
+            for (File file : files) {
+                if (file.isFile() && file.getName().endsWith(".json")) {
+                    try {
+                        // Extract endpoint name from filename (format: metrics-endpoint-yyyy-MM-dd.json)
+                        String fileName = file.getName();
+                        String[] parts = fileName.split("-");
+                        if (parts.length >= 4) {
+                            // Reconstruct endpoint name (replace underscores back to original characters)
+                            StringBuilder endpointBuilder = new StringBuilder();
+                            for (int i = 1; i < parts.length - 3; i++) {
+                                if (i > 1) {
+                                    endpointBuilder.append("-");
+                                }
+                                endpointBuilder.append(parts[i]);
+                            }
+                            String endpoint = endpointBuilder.toString().replace("_", " ");
+                            
+                            // Load metrics from file
+                            List<EndpointMetrics> metrics = readMetricsFromFile(file);
+                            if (!metrics.isEmpty()) {
+                                // Add to memory cache
+                                memoryCache.computeIfAbsent(endpoint, k -> Collections.synchronizedList(new ArrayList<>()))
+                                           .addAll(metrics);
+                                loadedCount += metrics.size();
+                                logger.debug("Loaded {} metrics from disk for endpoint {}", metrics.size(), endpoint);
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.debug("Could not load metrics from file: {}", file.getName(), e);
+                    }
+                }
+            }
+
+            if (loadedCount > 0) {
+                logger.info("Loaded {} metrics from disk into memory cache", loadedCount);
+            }
+        } catch (Exception e) {
+            logger.error("Error loading metrics from disk: {}", e.getMessage());
+        }
     }
 
     /**
@@ -281,6 +339,28 @@ public class MetricsStorage {
     public int getMemoryCacheSize(String endpoint) {
         List<EndpointMetrics> metrics = memoryCache.get(endpoint);
         return metrics != null ? metrics.size() : 0;
+    }
+
+    /**
+     * Flush all metrics to disk when the application is shutting down.
+     */
+    @org.springframework.stereotype.Component
+    public static class MetricsStorageShutdownHook {
+        
+        private final MetricsStorage metricsStorage;
+        
+        public MetricsStorageShutdownHook(MetricsStorage metricsStorage) {
+            this.metricsStorage = metricsStorage;
+        }
+        
+        @javax.annotation.PostConstruct
+        public void init() {
+            // Register shutdown hook
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                metricsStorage.flushAll();
+                logger.info("Flushed all metrics to disk during shutdown");
+            }));
+        }
     }
 
     private void ensureStorageDirectoryExists() {
